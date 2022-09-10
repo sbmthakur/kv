@@ -2,6 +2,7 @@ package main
 
 import (
     "fmt"
+    "io"
     "net"
     "strings"
     "dict/dict"
@@ -16,15 +17,23 @@ func handleConnection(c net.Conn, con_count int, d dict.Dictionary) {
 
         data := make([]byte, 0, 1024)
 
-
         for {
             buf := make([]byte, 20)
             n, err := c.Read(buf)
 
             if err != nil {
-                fmt.Println("Connection read error")
+
+                if err == io.EOF {
+                    fmt.Println("Connection %d terminated", con_count)
+                    return
+                } 
+
+                fmt.Println("Connection read error", err)
             }
+
             str_data := string(buf)
+
+            fmt.Println("ddd", str_data)
 
             data = append(data, buf[:n]...)
 
@@ -35,7 +44,6 @@ func handleConnection(c net.Conn, con_count int, d dict.Dictionary) {
 
 
         cmds := strings.Split(string(data), " ")
-        fmt.Println("len %d", len(cmds))
         cmd_name, cmd_key := cmds[0], cmds[1]
         cmd_data := ""
 
@@ -44,34 +52,37 @@ func handleConnection(c net.Conn, con_count int, d dict.Dictionary) {
         }
 
         if len(cmds) == 3 {
-            fmt.Println(cmd_data)
             cmd_data = cmds[2]
             cmd_data = strings.Replace(cmd_data, "\r\n", "", 1)
-            fmt.Println("1234")
-            fmt.Println(cmd_data)
         }
 
+        fmt.Println("Command received %s", cmd_name)
+
         if cmd_name == "set" {
-            fmt.Println(cmd_key, cmd_data)
+            //fmt.Println(cmd_key, cmd_data)
             e := d.Add(cmd_key, cmd_data)
             if e != nil {
-                fmt.Println("key set error")
+                _, er := c.Write([]byte("NOT-STORED\r\n"))
+                fmt.Println("key set error", er)
             } else {
-                _, er := c.Write([]byte("STORED"))
+                _, er := c.Write([]byte("STORED\r\n"))
                 if er != nil {
-                    fmt.Println("SSSSSTORED")
+                    fmt.Println("connection write error with set!")
                 }
             }
         }
 
-        v, e := d.Search(cmd_key)
-        fmt.Println("%%")
+        if cmd_name == "get" {
+            val, e := d.Search(cmd_key)
 
-        if e == nil {
-            fmt.Println(v)
-
-        } else {
-            fmt.Println("Key not found %s", cmd_name)
+            if e != nil {
+                fmt.Println("Key %s not found", cmd_key)
+            } else {
+                _, er := c.Write([]byte(val))
+                if er != nil {
+                    fmt.Println("connection write error with get!")
+                }
+            }
         }
     }
 }
