@@ -11,9 +11,9 @@ import (
 
 func handleConnection(c net.Conn, con_count int, d dict.Dictionary) {
     defer c.Close()
+    fmt.Println("Connection number:", con_count)
 
     for {
-        fmt.Println("Connection number: %v", con_count)
 
         data := make([]byte, 0, 1024)
 
@@ -56,10 +56,9 @@ func handleConnection(c net.Conn, con_count int, d dict.Dictionary) {
             cmd_data = strings.Replace(cmd_data, "\r\n", "", 1)
         }
 
-        fmt.Println("Command received %s", cmd_name)
+        fmt.Println("Command received: ", cmd_name)
 
         if cmd_name == "set" {
-            //fmt.Println(cmd_key, cmd_data)
             e := d.Add(cmd_key, cmd_data)
             if e != nil {
                 _, er := c.Write([]byte("NOT-STORED\r\n"))
@@ -76,9 +75,15 @@ func handleConnection(c net.Conn, con_count int, d dict.Dictionary) {
             val, e := d.Search(cmd_key)
 
             if e != nil {
-                fmt.Println("Key %s not found", cmd_key)
+                fmt.Println("Key", cmd_key, "not found")
+                c.Write([]byte("NOT PRESENT\r\n"))
             } else {
-                _, er := c.Write([]byte(val))
+
+                var sb strings.Builder
+                sb.WriteString(val)
+                sb.WriteString("\r\n")
+
+                _, er := c.Write([]byte(sb.String()))
                 if er != nil {
                     fmt.Println("connection write error with get!")
                 }
