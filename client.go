@@ -14,7 +14,25 @@ func read(con net.Conn) {
     con.Close()
 }
 
-func validate_command(command string, n int) bool {
+func createCommandString(arguments []string) string {
+    var commandString strings.Builder
+
+    switch arguments[1] {
+    case "set":
+        commandString.WriteString(arguments[1])
+        commandString.WriteString(" ")
+        commandString.WriteString(arguments[2])
+        commandString.WriteString(" ")
+        commandString.WriteString(arguments[3])
+    case "get":
+        commandString.WriteString(arguments[1])
+        commandString.WriteString(" ")
+        commandString.WriteString(arguments[2])
+    }
+    return commandString.String()
+}
+
+func validateCommand(command string, n int) bool {
 
     command_map := map[string]int{ "set": 4, "get": 3 }
 
@@ -31,7 +49,7 @@ func main() {
 
     command := arguments[1]
 
-    if validate_command(command, len(arguments)) == false {
+    if validateCommand(command, len(arguments)) == false {
         fmt.Println("Invalid number of arguments")
         return
     }
@@ -47,19 +65,17 @@ func main() {
     }
 
     defer read(con)
-    // Concat string...
-    _, er := con.Write([]byte("set key val\r\n"))
+
+    commandString := createCommandString(arguments)
+    //fmt.Println("Command type")
+    //fmt.Println(commandString)
+
+    _, er := con.Write([]byte(commandString + "\r\n"))
 
     fmt.Println("Key written? ")
 
     if er != nil {
         fmt.Println("write failure")
     }
-
-    /*
-    for {
-        read(con)
-    }
-    */
 }
 

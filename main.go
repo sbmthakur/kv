@@ -38,6 +38,7 @@ func handleConnection(c net.Conn, con_count int, d dict.Dictionary) {
             data = append(data, buf[:n]...)
 
             if strings.Contains(str_data, "\r\n") {
+                fmt.Println("Got new line chars!")
                 break
             }
         }
