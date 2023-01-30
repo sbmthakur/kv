@@ -2,11 +2,14 @@ package main
 
 import (
     "fmt"
-    "io"
+    "flag"
+//    "io"
     "net"
     "strings"
     "dict/dict"
+    //"os"
     //"reflect"
+    "strconv"
 )
 
 func handleConnection(c net.Conn, con_count int, d dict.Dictionary) {
@@ -23,14 +26,17 @@ func handleConnection(c net.Conn, con_count int, d dict.Dictionary) {
 
             if err != nil {
 
+                /*
                 if err == io.EOF {
                     fmt.Println("Connection %d terminated", con_count)
                     return
                 } 
 
                 fmt.Println("Connection read error", err)
+                */
             }
 
+            fmt.Println(buf)
             str_data := string(buf)
 
             fmt.Println("ddd", str_data)
@@ -44,23 +50,23 @@ func handleConnection(c net.Conn, con_count int, d dict.Dictionary) {
         }
 
 
-        cmds := strings.Split(string(data), " ")
+        input_string := strings.Replace(string(data), "\r\n", "", 1)
+        fmt.Println("input str", input_string)
+        cmds := strings.Split(input_string, " ")
+
         cmd_name, cmd_key := cmds[0], cmds[1]
-        cmd_data := ""
-
-        if len(cmds) == 2 {
-            cmd_key = strings.Replace(cmd_key, "\r\n", "", 1)
-        }
-
-        if len(cmds) == 3 {
-            cmd_data = cmds[2]
-            cmd_data = strings.Replace(cmd_data, "\r\n", "", 1)
-        }
-
-        fmt.Println("Command received: ", cmd_name)
 
         if cmd_name == "set" {
+            valsize, _ := strconv.Atoi(cmds[4])
+            fmt.Println("valsize", valsize)
+            valbuf := make([]byte, valsize + 2)
+            fmt.Println("expecting val for set")
+            c.Read(valbuf)
+            //cmd_data := strings.Replace(string(valbuf), "\r\n", "", 1)
+            cmd_data := string(valbuf)[0:valsize]
+            fmt.Println("Storing ", cmd_key," for ", cmd_data, len(cmd_data))
             e := d.Add(cmd_key, cmd_data)
+
             if e != nil {
                 _, er := c.Write([]byte("NOT-STORED\r\n"))
                 fmt.Println("key set error", er)
@@ -73,28 +79,26 @@ func handleConnection(c net.Conn, con_count int, d dict.Dictionary) {
         }
 
         if cmd_name == "get" {
-            val, e := d.Search(cmd_key)
+            val, _ := d.Search(cmd_key)
+            fmt.Println("retrieved val ", len(val))
+            ws := "VALUE " + cmd_key + " 0 " + strconv.Itoa(len(val)) + "\r\n"
+            c.Write([]byte(ws))
+            c.Write([]byte(val + "\r\n"))
+            c.Write([]byte("END\r\n"))
 
-            if e != nil {
-                fmt.Println("Key", cmd_key, "not found")
-                c.Write([]byte("NOT PRESENT\r\n"))
-            } else {
-
-                var sb strings.Builder
-                sb.WriteString(val)
-                sb.WriteString("\r\n")
-
-                _, er := c.Write([]byte(sb.String()))
-                if er != nil {
-                    fmt.Println("connection write error with get!")
-                }
-            }
         }
     }
 }
 
 func main() {
-    l, err := net.Listen("tcp", ":9002")
+
+    portPtr := flag.String("port", "4000", "port number to be used")
+    flag.Parse()
+
+    port := ":" + *portPtr
+
+    fmt.Println("Using port ", port)
+    l, err := net.Listen("tcp", port)
 
     if err != nil {
         fmt.Println(err)
@@ -110,7 +114,6 @@ func main() {
     for {
 
         count += 1
-        //fmt.Println(count)
         c, err := l.Accept()
 
         if err != nil {
@@ -121,5 +124,4 @@ func main() {
         go handleConnection(c, count, d)
     }
 }
-
 
