@@ -1,39 +1,38 @@
 package main
 
 import (
+	"dict/dict"
 	"flag"
 	"fmt"
-
-	//    "io"
-	"dict/dict"
+	"io"
 	"net"
-	"strings"
-
-	//"os"
-	//"reflect"
 	"strconv"
+	"strings"
 )
 
-func handleSet(c net.Conn, cmds []string, d dict.Dictionary) {
+func connWriter(c net.Conn, message string) {
+	c.Write([]byte(message))
+}
+
+func handleSet(c net.Conn, cmds []string, d dict.Dictionary) string {
 	valsize, _ := strconv.Atoi(cmds[4])
-	fmt.Println("valsize", valsize)
 	valbuf := make([]byte, valsize+2)
-	fmt.Println("expecting val for set")
 	c.Read(valbuf)
-	//cmd_data := strings.Replace(string(valbuf), "\r\n", "", 1)
 	cmd_key := cmds[1]
 	cmd_data := string(valbuf)[0:valsize]
-	fmt.Println("Storing ", cmd_key, " for ", cmd_data, len(cmd_data))
 	e := d.Add(cmd_key, cmd_data)
 	if e != nil {
-		_, er := c.Write([]byte("NOT-STORED\r\n"))
-		fmt.Println("key set error", er)
+		return "NOT-STORED\r\n"
 	} else {
-		_, er := c.Write([]byte("STORED\r\n"))
-		if er != nil {
-			fmt.Println("connection write error with set!")
-		}
+		return "STORED\r\n"
 	}
+}
+
+func handleGet(cmds []string, d dict.Dictionary) (string, string) {
+	cmd_key := cmds[1]
+	val, _ := d.Search(cmd_key)
+	ws := "VALUE " + cmd_key + " 0 " + strconv.Itoa(len(val)) + "\r\n"
+	return ws, val
 }
 
 func handleConnection(c net.Conn, con_count int, d dict.Dictionary) {
@@ -50,14 +49,12 @@ func handleConnection(c net.Conn, con_count int, d dict.Dictionary) {
 
 			if err != nil {
 
-				/*
-				   if err == io.EOF {
-				       fmt.Println("Connection %d terminated", con_count)
-				       return
-				   }
+				if err == io.EOF {
+					fmt.Println("Connection ", con_count, " terminated")
+					return
+				}
 
-				   fmt.Println("Connection read error", err)
-				*/
+				//fmt.Println("Connection read error", err)
 			}
 
 			fmt.Println(buf)
@@ -68,50 +65,27 @@ func handleConnection(c net.Conn, con_count int, d dict.Dictionary) {
 			data = append(data, buf[:n]...)
 
 			if strings.Contains(str_data, "\r\n") {
-				fmt.Println("Got new line chars!")
+				//fmt.Println("Got new line chars!")
 				break
 			}
 		}
 
 		input_string := strings.Replace(string(data), "\r\n", "", 1)
-		fmt.Println("input str", input_string)
+		//fmt.Println("input str", input_string)
 		cmds := strings.Split(input_string, " ")
 
-		cmd_name, cmd_key := cmds[0], cmds[1]
+		cmd_name := cmds[0]
 
 		if cmd_name == "set" {
-			handleSet(c, cmds, d)
-			/*
-			   valsize, _ := strconv.Atoi(cmds[4])
-			   fmt.Println("valsize", valsize)
-			   valbuf := make([]byte, valsize + 2)
-			   fmt.Println("expecting val for set")
-			   c.Read(valbuf)
-			   //cmd_data := strings.Replace(string(valbuf), "\r\n", "", 1)
-			   cmd_data := string(valbuf)[0:valsize]
-			   fmt.Println("Storing ", cmd_key," for ", cmd_data, len(cmd_data))
-			   e := d.Add(cmd_key, cmd_data)
-
-			   if e != nil {
-			       _, er := c.Write([]byte("NOT-STORED\r\n"))
-			       fmt.Println("key set error", er)
-			   } else {
-			       _, er := c.Write([]byte("STORED\r\n"))
-			       if er != nil {
-			           fmt.Println("connection write error with set!")
-			       }
-			   }
-			*/
+			res := handleSet(c, cmds, d)
+			connWriter(c, res)
 		}
 
 		if cmd_name == "get" {
-			val, _ := d.Search(cmd_key)
-			fmt.Println("retrieved val ", len(val))
-			ws := "VALUE " + cmd_key + " 0 " + strconv.Itoa(len(val)) + "\r\n"
-			c.Write([]byte(ws))
-			c.Write([]byte(val + "\r\n"))
-			c.Write([]byte("END\r\n"))
-
+			info, val := handleGet(cmds, d)
+			connWriter(c, info)
+			connWriter(c, val)
+			connWriter(c, "END\r\n")
 		}
 	}
 }
