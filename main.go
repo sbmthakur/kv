@@ -22,7 +22,7 @@ func handleSet(c net.Conn, cmds []string, d dict.Dictionary) string {
 	cmd_data := string(valbuf)[0:valsize]
 	e := d.Add(cmd_key, cmd_data)
 	if e != nil {
-		return "NOT-STORED\r\n"
+		return "NOT_STORED\r\n"
 	} else {
 		return "STORED\r\n"
 	}
@@ -33,6 +33,20 @@ func handleGet(cmds []string, d dict.Dictionary) (string, string) {
 	val, _ := d.Search(cmd_key)
 	ws := "VALUE " + cmd_key + " 0 " + strconv.Itoa(len(val)) + "\r\n"
 	return ws, val
+}
+
+func handleDelete(cmds []string, d dict.Dictionary) string {
+	cmd_key := cmds[1]
+	_, err := d.Search(cmd_key)
+
+	if err != nil {
+		if err == dict.ErrNotFound {
+			return "NOT_FOUND\r\n"
+		}
+		return "ERROR\r\n"
+	} else {
+		return "DELETED\r\n"
+	}
 }
 
 func handleConnection(c net.Conn, con_count int, d dict.Dictionary) {
@@ -48,30 +62,21 @@ func handleConnection(c net.Conn, con_count int, d dict.Dictionary) {
 			n, err := c.Read(buf)
 
 			if err != nil {
-
 				if err == io.EOF {
 					fmt.Println("Connection ", con_count, " terminated")
 					return
 				}
-
-				//fmt.Println("Connection read error", err)
 			}
 
-			fmt.Println(buf)
 			str_data := string(buf)
-
-			fmt.Println("ddd", str_data)
-
 			data = append(data, buf[:n]...)
 
 			if strings.Contains(str_data, "\r\n") {
-				//fmt.Println("Got new line chars!")
 				break
 			}
 		}
 
 		input_string := strings.Replace(string(data), "\r\n", "", 1)
-		//fmt.Println("input str", input_string)
 		cmds := strings.Split(input_string, " ")
 
 		cmd_name := cmds[0]
@@ -86,6 +91,11 @@ func handleConnection(c net.Conn, con_count int, d dict.Dictionary) {
 			connWriter(c, info)
 			connWriter(c, val)
 			connWriter(c, "END\r\n")
+		}
+
+		if cmd_name == "delete" {
+			info := handleDelete(cmds, d)
+			connWriter(c, info)
 		}
 	}
 }
