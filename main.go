@@ -2,10 +2,13 @@ package main
 
 import (
 	"dict/dict"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"io"
+	"log"
 	"net"
+	"os"
 	"strconv"
 	"strings"
 )
@@ -83,6 +86,16 @@ func handleConnection(c net.Conn, con_count int, d dict.Dictionary) {
 
 		if cmd_name == "set" {
 			res := handleSet(c, cmds, d)
+			b, er := json.Marshal(d)
+
+			if er != nil {
+				fmt.Errorf("%v", er)
+			} else {
+				log.Println(b)
+				log.Println("Writing the file...")
+				os.WriteFile("./data.json", b, 0644)
+			}
+
 			connWriter(c, res)
 		}
 
@@ -101,6 +114,8 @@ func handleConnection(c net.Conn, con_count int, d dict.Dictionary) {
 }
 
 func main() {
+
+	log.SetOutput(os.Stdout)
 
 	portPtr := flag.String("port", "4000", "port number to be used")
 	flag.Parse()
